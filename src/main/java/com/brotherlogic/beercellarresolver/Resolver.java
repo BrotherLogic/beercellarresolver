@@ -2,6 +2,7 @@ package com.brotherlogic.beercellarresolver;
 
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -71,7 +72,7 @@ public class Resolver {
         int lcount = 0;
         for (String line = reader.readLine(); line != null; line = reader
                 .readLine())
-            if (lcount++ % 8 == 0)
+            if (lcount++ % 7 == 0)
                 lastDate = line.trim();
             else {
                 String beerDrunk = line.trim();
@@ -120,13 +121,24 @@ public class Resolver {
             Calendar lastDone = Calendar.getInstance();
             lastDone.setTime(df.parse(lastDate));
 
+            for (Integer val : new Integer[] { Calendar.HOUR_OF_DAY,
+                    Calendar.MINUTE, Calendar.SECOND, Calendar.MILLISECOND })
+                lastDone.set(val, nextSunday.get(val));
+
+            DateFormat df2 = DateFormat.getDateTimeInstance();
             if (lastDone.before(nextSunday)) {
-                PrintWriter pw = new PrintWriter(baseline + "todrink.list");
+                System.out.println(df2.format(lastDone.getTime()) + " vs "
+                        + df2.format(nextSunday.getTime()));
+                PrintWriter pw = new PrintWriter(new FileOutputStream(new File(
+                        baseline + "todrink.list"), true));
                 pw.println(df.format(nextSunday.getTime()));
                 for (int i = 0; i < Math.min(2, bombers.size()); i++)
                     pw.print(bombers.get(i).name);
                 for (int i = 0; i < Math.min(4, smalls.size()); i++)
                     pw.println(smalls.get(i));
+                for (int i = 0; i < Math.abs(2 - bombers.size())
+                        + Math.abs(4 - smalls.size()); i++)
+                    pw.println("EMPTY");
                 pw.close();
             }
 
