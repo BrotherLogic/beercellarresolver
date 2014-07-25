@@ -26,6 +26,21 @@ public class Resolver
    List<Beer> smalls;
    String lastDate = "";
 
+   public void organise()
+   {
+      try
+      {
+         load();
+
+         for (int i = smalls.size() - 1; i >= 0; i--)
+            System.out.println(smalls.get(i));
+      }
+      catch (Exception e)
+      {
+         e.printStackTrace();
+      }
+   }
+
    public void run() throws ParseException
    {
       try
@@ -142,7 +157,7 @@ public class Resolver
    public static void main(String[] args) throws Exception
    {
       Resolver r = new Resolver();
-      r.run();
+      r.organise();
    }
 }
 
