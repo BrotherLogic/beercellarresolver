@@ -30,10 +30,42 @@ public class Resolver
    {
       try
       {
-         load();
+         loadOrg();
 
+         int cube = 1;
+         System.out.println("CUBE1");
+         System.out.println("-----");
+         System.out.println();
+         int count = 0;
          for (int i = smalls.size() - 1; i >= 0; i--)
+         {
             System.out.println(smalls.get(i));
+            count++;
+            if (count % 30 == 0)
+            {
+               System.out.println("CUBE" + (++cube));
+               System.out.println("-----");
+               System.out.println();
+            }
+         }
+
+         System.out.println("Bombers");
+         System.out.println("CUBE" + (++cube));
+         System.out.println("-----");
+         System.out.println();
+
+         count = 0;
+         for (int i = bombers.size() - 1; i >= 0; i--)
+         {
+            System.out.println(bombers.get(i));
+            count++;
+            if (count % 20 == 0)
+            {
+               System.out.println("CUBE" + (++cube));
+               System.out.println("-----");
+               System.out.println();
+            }
+         }
       }
       catch (Exception e)
       {
@@ -97,8 +129,8 @@ public class Resolver
    private void load() throws IOException
    {
       drunk = loadDone("todrink.list");
-      bombers = loadToGo("bomber.list");
-      smalls = loadToGo("smaller.list");
+      bombers = loadToGo("bomber.list", false);
+      smalls = loadToGo("smaller.list", false);
 
       Collections.sort(bombers);
       Collections.sort(smalls);
@@ -127,7 +159,17 @@ public class Resolver
       return counts;
    }
 
-   private List<Beer> loadToGo(String name) throws IOException
+   private void loadOrg() throws IOException
+   {
+      drunk = loadDone("todrink.list");
+      bombers = loadToGo("bomber.list", true);
+      smalls = loadToGo("smaller.list", true);
+
+      Collections.sort(bombers);
+      Collections.sort(smalls);
+   }
+
+   private List<Beer> loadToGo(String name, boolean avail) throws IOException
    {
       List<Beer> beers = new LinkedList<Beer>();
       File f = new File(baseline + name);
@@ -138,7 +180,7 @@ public class Resolver
          try
          {
             Beer b = new Beer(elems[0], elems[1]);
-            if (b.isAvailable())
+            if (avail || b.isAvailable())
                if (!drunk.containsKey(b.name) || drunk.get(b.name) < 0)
                   beers.add(b);
                else
