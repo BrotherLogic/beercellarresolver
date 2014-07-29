@@ -14,11 +14,19 @@ import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 
 class Beer implements Comparable<Beer> {
     Long outDate;
     String name;
+    boolean isNew;
+
+    public Beer(String line) throws ParseException {
+        this(line.split("~")[0], line.split("~")[1]);
+    }
 
     public Beer(String name, String date) throws ParseException {
         this.name = name;
@@ -30,21 +38,38 @@ class Beer implements Comparable<Beer> {
         return outDate.compareTo(o.outDate);
     }
 
+    public boolean equals(Beer o) {
+        return o.name.equals(name) && o.outDate.equals(outDate);
+    }
+
     public boolean isAvailable() {
         Calendar now = Calendar.getInstance();
         return outDate < now.getTimeInMillis();
     }
 
+    public boolean isNew() {
+        return isNew;
+    }
+
+    public void setNew(boolean isNew) {
+        this.isNew = isNew;
+    }
+
     @Override
     public String toString() {
-        return name;
+        String add = "";
+        if (isNew)
+            add = " (N)";
+        return name + "~" + Resolver.df.format(outDate) + add;
     }
 }
 
 public class Resolver {
     public static void main(String[] args) throws Exception {
         Resolver r = new Resolver();
-        r.organise();
+        // r.organise();
+        r.loadOrg();
+        r.organiseInPlace();
     }
 
     public static DateFormat df = new SimpleDateFormat("dd/MM/yy");
@@ -52,8 +77,12 @@ public class Resolver {
     Map<String, Integer> drunk;
     List<Beer> bombers;
     List<Beer> smalls;
+    Set<Integer> bomberCubes = new TreeSet<Integer>();
+    Set<Integer> smallCubes = new TreeSet<Integer>();
 
     String lastDate = "";
+
+    Map<Integer, List<Beer>> currOrg;
 
     private void load() throws IOException {
         drunk = loadDone("todrink.list");
@@ -89,13 +118,38 @@ public class Resolver {
     private void loadOrg() throws IOException {
         drunk = loadDone("todrink.list");
 
-        System.out.println(drunk);
-
         bombers = loadToGo("bomber.list", true);
         smalls = loadToGo("smaller.list", true);
 
         Collections.sort(bombers);
         Collections.sort(smalls);
+
+        currOrg = loadPlaced("organise.list");
+    }
+
+    private Map<Integer, List<Beer>> loadPlaced(String filename)
+            throws IOException {
+        Map<Integer, List<Beer>> placed = new TreeMap<Integer, List<Beer>>();
+        for (int i = 1; i <= 8; i++)
+            placed.put(i, new LinkedList<Beer>());
+
+        File f = new File(baseline + filename);
+        int currentCube = 0;
+        BufferedReader reader = new BufferedReader(new FileReader(f));
+        for (String line = reader.readLine(); line != null; line = reader
+                .readLine())
+            if (line.startsWith("CUBE"))
+                currentCube++;
+            else if (!line.startsWith("----") && line.trim().length() > 0)
+                try {
+                    placed.get(currentCube).add(new Beer(line.trim()));
+                } catch (ParseException e) {
+                    e.printStackTrace();
+                }
+
+        reader.close();
+
+        return placed;
     }
 
     private List<Beer> loadToGo(String name, boolean avail) throws IOException {
@@ -160,6 +214,96 @@ public class Resolver {
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    private void organiseInPlace() {
+        for (Entry<Integer, List<Beer>> entry : currOrg.entrySet())
+            for (int i = entry.getValue().size() - 1; i >= 0; i--) {
+                Beer orgd = entry.getValue().get(i);
+                boolean found = false;
+                for (int j = smalls.size() - 1; j >= 0; j--)
+                    if (smalls.get(j).equals(orgd)) {
+                        smallCubes.add(entry.getKey());
+                        smalls.remove(j);
+                        found = true;
+                        break;
+                    }
+
+                if (!found)
+                    for (int j = bombers.size() - 1; j >= 0; j--)
+                        if (bombers.get(j).equals(orgd)) {
+                            bomberCubes.add(entry.getKey());
+                            bombers.remove(j);
+                            found = true;
+                            break;
+                        }
+            }
+
+        for (int i = bombers.size() - 1; i >= 0; i--)
+            currOrg = place(bombers.get(i), currOrg, true);
+
+        for (int i = smalls.size() - 1; i >= 0; i--)
+            currOrg = place(smalls.get(i), currOrg, false);
+
+        for (Entry<Integer, List<Beer>> cube : currOrg.entrySet()) {
+            System.out.println();
+            System.out.println("CUBE" + cube.getKey());
+            System.out.println("------");
+
+            for (int i = 0; i < cube.getValue().size(); i++)
+                System.out.println(cube.getValue().get(i));
+        }
+    }
+
+    private Map<Integer, List<Beer>> place(Beer beer,
+            Map<Integer, List<Beer>> placed, boolean bomber) {
+
+        int[] available = new int[8];
+        for (int i = 0; i < available.length; i++)
+            available[i] = 31;
+
+        if (bomber)
+            for (Integer sc : smallCubes)
+                available[sc - 1] = -1;
+        else
+            for (Integer bc : bomberCubes)
+                available[bc - 1] = -1;
+
+        int best = 0;
+        for (int i = 0; i < available.length; i++)
+            if (available[i] >= 0) {
+                List<Beer> cubeCurrent = placed.get(i + 1);
+                if ((bomber && cubeCurrent.size() < 20)
+                        || (!bomber && cubeCurrent.size() < 30)) {
+                    // We can place in this cube
+                    if (cubeCurrent.size() > 0)
+                        for (int j = cubeCurrent.size() - 1; j >= 0; j--)
+                            if (beer.compareTo(cubeCurrent.get(j)) >= 0)
+                                available[i] = cubeCurrent.size() - j;
+                } else
+                    available[i] = -1;
+            }
+
+        int bestCount = Integer.MAX_VALUE;
+        for (int i = 0; i < available.length; i++)
+            if (available[i] >= 0 && available[i] < bestCount) {
+                bestCount = available[i];
+                best = i;
+            }
+
+        // Place it
+        if (bomber)
+            bomberCubes.add(best + 1);
+        else
+            smallCubes.add(best + 1);
+        if (available[best] <= 30)
+            placed.get(best + 1).add(
+                    placed.get(best + 1).size() - available[best], beer);
+        else
+            placed.get(best + 1).add(beer);
+        beer.setNew(true);
+
+        return placed;
     }
 
     public void run() throws ParseException {
