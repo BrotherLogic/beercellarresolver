@@ -2,10 +2,8 @@ package com.brotherlogic.beercellarresolver;
 
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -24,7 +22,7 @@ public class Resolver
    public static DateFormat df = new SimpleDateFormat("dd/MM/yy");
 
    private final String baseline = "/Users/simon/Dropbox/beer/";
-   Map<String, Integer> drunk;
+   Set<Beer> drunk;
    List<Beer> bombers;
    List<Beer> smalls;
    Set<Integer> bomberCubes = new TreeSet<Integer>();
@@ -39,7 +37,7 @@ public class Resolver
       {
          loadOrg();
 
-         System.out.println(drunk);
+         // System.out.println(drunk);
 
          int cube = 1;
          System.out.println("CUBE1");
@@ -104,18 +102,13 @@ public class Resolver
          { Calendar.HOUR_OF_DAY, Calendar.MINUTE, Calendar.SECOND, Calendar.MILLISECOND })
             lastDone.set(val, nextSunday.get(val));
 
-         DateFormat df2 = DateFormat.getDateTimeInstance();
          if (lastDone.before(nextSunday))
          {
-            System.out.println(df2.format(lastDone.getTime()) + " vs "
-                  + df2.format(nextSunday.getTime()));
-            PrintWriter pw = new PrintWriter(new FileOutputStream(new File(baseline
-                  + "todrink.list"), true));
-            pw.println(df.format(nextSunday.getTime()));
+            System.out.println(df.format(nextSunday.getTime()));
             for (int i = 0; i < Math.min(2, bombers.size()); i++)
-               pw.println(bombers.get(i).name);
+               System.out.println(bombers.get(i));
             for (int i = 0; i < Math.min(4, smalls.size()); i++)
-               pw.println(smalls.get(i));
+               System.out.println(smalls.get(i));
 
             int bCount = 2 - bombers.size();
             int sCount = 4 - smalls.size();
@@ -124,8 +117,7 @@ public class Resolver
             if (sCount < 0)
                sCount = 0;
             for (int i = 0; i < bCount + sCount; i++)
-               pw.println("EMPTY");
-            pw.close();
+               System.out.println("EMPTY");
          }
       }
       catch (Exception e)
@@ -144,9 +136,9 @@ public class Resolver
       Collections.sort(smalls);
    }
 
-   private Map<String, Integer> loadDone(String name) throws IOException
+   private Set<Beer> loadDone(String name) throws IOException
    {
-      Map<String, Integer> counts = new TreeMap<String, Integer>();
+      Set<Beer> counts = new TreeSet<Beer>();
 
       File f = new File(baseline + name);
       BufferedReader reader = new BufferedReader(new FileReader(f));
@@ -155,19 +147,21 @@ public class Resolver
          if (lcount++ % 7 == 0)
             lastDate = line.trim();
          else
-         {
-            String beerDrunk = line.trim();
-            if (counts.containsKey(beerDrunk))
-               counts.put(beerDrunk, counts.get(beerDrunk) + 1);
-            else
-               counts.put(beerDrunk, 1);
-         }
+            try
+            {
+               Beer beerDrunk = new Beer(line.trim());
+               counts.add(beerDrunk);
+            }
+            catch (ParseException e)
+            {
+               e.printStackTrace();
+            }
       reader.close();
 
       return counts;
    }
 
-   private void loadOrg() throws IOException
+   private void loadOrg() throws Exception
    {
       drunk = loadDone("todrink.list");
 
@@ -213,29 +207,35 @@ public class Resolver
       File f = new File(baseline + name);
       BufferedReader reader = new BufferedReader(new FileReader(f));
       for (String line = reader.readLine(); line != null; line = reader.readLine())
-      {
-         String[] elems = line.trim().split("~");
-         try
+         if (line.trim().length() > 0)
          {
-            Beer b = new Beer(elems[0], elems[1]);
-            if (avail || b.isAvailable())
-               if (!drunk.containsKey(b.name) || drunk.get(b.name) <= 0)
-                  beers.add(b);
-               else
-                  drunk.put(b.name, drunk.get(b.name) - 1);
+            String[] elems = line.trim().split("~");
+            try
+            {
+               if (elems.length != 2)
+               {
+                  System.err.println("ERROR: " + line.trim());
+                  System.exit(1);
+               }
+               Beer b = new Beer(elems[0], elems[1]);
+               if (avail || b.isAvailable())
+                  if (!drunk.contains(b))
+                     beers.add(b);
+            }
+            catch (ParseException e)
+            {
+               System.out.println("Cannot parse: " + elems[1]);
+            }
          }
-         catch (ParseException e)
-         {
-            System.out.println("Cannot parse: " + elems[1]);
-         }
-      }
       reader.close();
 
       return beers;
    }
 
-   private void organiseInPlace()
+   private void organiseInPlace() throws Exception
    {
+      loadOrg();
+
       for (Entry<Integer, List<Beer>> entry : currOrg.entrySet())
          for (int i = entry.getValue().size() - 1; i >= 0; i--)
          {
@@ -334,11 +334,10 @@ public class Resolver
    public static void main(String[] args) throws Exception
    {
       Resolver r = new Resolver();
+      r.run();
       // r.organise();
-      r.loadOrg();
-      r.organiseInPlace();
+      // r.organiseInPlace();
    }
-
 }
 
 class Beer implements Comparable<Beer>
@@ -361,7 +360,11 @@ class Beer implements Comparable<Beer>
    @Override
    public int compareTo(Beer o)
    {
-      return outDate.compareTo(o.outDate);
+      int comp = outDate.compareTo(o.outDate);
+      if (comp == 0)
+         return name.compareTo(o.name);
+      else
+         return comp;
    }
 
    public boolean equals(Beer o)
